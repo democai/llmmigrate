@@ -9,27 +9,24 @@ use crate::llmmigrate::LlmMigrate;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Path to example source file (Exhibit A)
-    #[arg(long)]
     example: PathBuf,
 
     /// Path to current source file to migrate (Exhibit B)
-    #[arg(long)]
     source: PathBuf,
 
     /// Path where migrated code should be written
-    #[arg(long)]
     destination: PathBuf,
 
     /// Additional instructions for migration (optional)
-    #[arg(long)]
+    #[arg(long, short = 'i')]
     instructions: Option<String>,
 
     /// Anthropic API key
     #[arg(long, env = "ANTHROPIC_API_KEY")]
     api_key: String,
 
-    /// LLM model to use (default: claude-3-sonnet-20240229)
-    #[arg(long, default_value = "claude-3-sonnet-20240229")]
+    /// LLM model to use (default: claude-3-5-sonnet-latest)
+    #[arg(long, short = 'm', default_value = "claude-3-5-sonnet-latest")]
     model: String,
 
     /// Enable verbose output

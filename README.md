@@ -1,39 +1,31 @@
-# LLM Grep
+# LLM Migrate
 
-LLM Grep is a semantic search tool that uses Ollama's Large Language Models to find files containing information related to your search query. Unlike traditional grep that matches exact text patterns, LLM Grep tries to understand the meaning of the query and returns files that are semantically related.
+LLM Migrate is an AI-powered code migration tool that uses Claude to help developers migrate code from one implementation to another by providing an example. It analyzes an example of previously migrated code (Exhibit A) and applies similar transformations to your current code (Exhibit B) to generate a migrated version.
 
 ## Features
 
-- Two-phase semantic search:
-  - Phase 1: Smart filename analysis and scoring
-  - Phase 2: In-depth content analysis of promising files
-- Recursive directory traversal
-- Efficient file handling:
-  - Skips files larger than 1MB
-  - Binary file detection using null byte heuristics
-  - Processes large text files in 2000-character chunks
-- Natural language queries instead of regex patterns
-- Detailed relevance explanations for each match
-- Built with Rust and Ollama for performance and reliability
+- Example-based code migration using Claude's advanced language understanding
+- Applies transformations to new code
+- Supports additional migration instructions for fine-tuning
+- Defaults to Claude 3.5 Sonnet for code analysis and transformation
 
 ## Prerequisites
 
 - [Rust](https://rustup.rs/) (latest stable version)
-- [Ollama](https://ollama.ai/) installed and running locally
-- The [Dolphin Mistral](hhttps://ollama.com/library/dolphin-mistral) model pulled in Ollama (`ollama pull dolphin-mistral:latest`)
+- Anthropic API key for Claude access
 
 ## Installation
 
 1. Clone the repository
 
 ```sh
-git clone https://github.com/democai/llmgrep.git
+git clone https://github.com/democai/llmmigrate.git
 ```
 
 2. Navigate to the project directory:
 
 ```sh
-cd llmgrep
+cd llmmigrate
 ```
 
 3. Build the project:
@@ -42,28 +34,46 @@ cd llmgrep
 cargo build --release
 ```
 
-4. Run the binary:
+4. Set up your Anthropic API key:
 
 ```sh
-cargo run --release -- "<search query>"
-```
-
-## Example
-
-```sh
-cargo run --release -- "find me the file with the string 'hello'"
+export ANTHROPIC_API_KEY='your-api-key-here'
 ```
 
 ## Usage
 
-Usage: `llmgrep` [OPTIONS] `<QUERY>` [DIRECTORY]  
-Arguments:  
-  `<QUERY>`      Search query - what to look for semantically  
-  `[DIRECTORY]`  Directory to search in (default: `.`)  
+```sh
+llm-migrate [OPTIONS] <EXAMPLE> <SOURCE> <DESTINATION>
+```
 
-Options:  
-  `--model <MODEL>`                LLM model to use (default: `dolphin-mistral:latest`)  
-  `--ignore-paths <IGNORE_PATHS>`  Paths to ignore during search (comma separated) (default: `.git,.gitignore,.vscode,.idea,.vscode-test,target,dist,.gradle,dep,node_modules,package-lock.json,Cargo.lock`)  
-  `-v, --verbose`                  Enable verbose output  
-  `-h, --help`                     Print help  
-  `-V, --version`                  Print version  
+Arguments:
+- `<EXAMPLE>`     Path to example source file (Exhibit A) showing desired migration
+- `<SOURCE>`      Path to current source file to migrate (Exhibit B)
+- `<DESTINATION>` Path where migrated code should be written
+
+Options:
+- `-i, --instructions <INSTRUCTIONS>`  Additional instructions for migration
+- `-m, --model <MODEL>`               LLM model to use (default: claude-3-5-sonnet-latest)
+- `-v, --verbose`                     Enable verbose output
+- `-h, --help`                        Print help
+- `-V, --version`                     Print version
+
+## Example
+
+```sh
+llm-migrate \
+  --instructions "Be sure to preserve the original code's for loops" \
+  example-output.jsx \
+  src/components/MyComponent.jsx \
+  src/components/MyNewComponent.jsx
+```
+
+## How It Works
+
+1. The tool formulates a prompt using the example migration (Exhibit A), the current source code (Exhibit B), and any additional instructions provided.
+2. It sends this prompt to the LLM to generate the migrated code.
+3. The output from the LLM is then written to the specified destination path.
+
+## License
+
+[MIT License](LICENSE)

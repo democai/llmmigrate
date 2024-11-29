@@ -1,6 +1,6 @@
-use anthropic::client::ClientBuilder;
-use anthropic::types::CompleteRequestBuilder;
-use anthropic::{AI_PROMPT, HUMAN_PROMPT};
+use anthropic::client::Client;
+use anthropic::config::AnthropicConfig;
+use anthropic::types::{ContentBlock, Message, MessagesRequestBuilder, Role};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -8,7 +8,7 @@ use std::path::Path;
 
 #[derive(Debug)]
 pub struct LlmMigrate {
-    client: anthropic::client::Client,
+    client: Client,
     model: String,
     verbose: bool,
 }
@@ -21,9 +21,9 @@ struct MigrationResponse {
 
 impl LlmMigrate {
     pub fn new(api_key: &str, model: &str, verbose: bool) -> Result<Self> {
-        let client = ClientBuilder::default()
-            .api_key(api_key.to_string())
-            .build()?;
+        let mut cfg = AnthropicConfig::new()?;
+        cfg.api_key = api_key.to_string();
+        let client = Client::try_from(cfg)?;
 
         Ok(LlmMigrate {
             client,
@@ -43,47 +43,63 @@ impl LlmMigrate {
             println!("Starting code migration process...");
         }
 
-        let system_instructions = "You are an expert code migration assistant. Your task is to transform the provided source code into a new format based on an example and any additional instructions. Focus on:
+        let system_message = Message {
+            role: Role::Assistant,
+            content: vec![ContentBlock::Text { 
+                text: "You are an expert code migration assistant. Your task is to transform the provided source code into a new format based on an example and any additional instructions. Focus on:
 
 1. Maintaining the core functionality while adopting the new style/patterns
 2. Following best practices from the example code
-3. Preserving important comments and documentation
-4. Ensuring the migrated code is complete and valid
+3. Copy the format and structure of the example code
+4. Preserving important comments and documentation
+5. Ensuring the migrated code is complete and valid
+6. Provide the full output in the migrated_code field.
 
 Respond with a JSON object containing:
 {
     \"migrated_code\": string,
     \"explanation\": string | null
-}";
+}".into()
+            }],
+        };
 
-        let prompt = format!(
-            "{HUMAN_PROMPT}{}\n\nMigrate the following code:\n\n\
-            EXHIBIT A (Example of desired format):\n\
-            ```\n{}\n```\n\n\
-            EXHIBIT B (Current code to migrate):\n\
-            ```\n{}\n```\n\n\
-            Additional Instructions:\n{}\n\n\
-            Please migrate Exhibit B to match the style and patterns shown in Exhibit A, \
-            following any additional instructions provided.{AI_PROMPT}",
-            system_instructions,
-            example_source,
-            current_source,
-            instructions.unwrap_or("No additional instructions provided.")
-        );
+        let user_message = Message {
+            role: Role::User,
+            content: vec![ContentBlock::Text { 
+                text: format!(
+                    "Migrate the following code:\n\n\
+                    EXHIBIT A (Example of desired output format):\n\
+                    ```\n{}\n```\n\n\
+                    EXHIBIT B (Current code to migrate):\n\
+                    ```\n{}\n```\n\n\
+                    Additional Instructions:\n{}\n\n\
+                    Please migrate Exhibit B to match the style and patterns shown in Exhibit A, \
+                    following any additional instructions provided.",
+                    example_source,
+                    current_source,
+                    instructions.unwrap_or("No additional instructions provided.")
+                ).into()
+            }],
+        };
 
         if self.verbose {
             println!("Sending request to Claude...");
         }
 
-        let complete_request = CompleteRequestBuilder::default()
-            .prompt(prompt)
+        let messages_request = MessagesRequestBuilder::default()
+            .messages(vec![system_message, user_message])
             .model(self.model.clone())
-            .stream(false)
-            .stop_sequences(vec![HUMAN_PROMPT.to_string()])
+            .max_tokens(8192usize)
             .build()?;
 
-        let response = self.client.complete(complete_request).await?;
-        let migration: MigrationResponse = serde_json::from_str(&response.completion)?;
+        let response = self.client.messages(messages_request).await?;
+        let content = response.content.first().ok_or(anyhow::anyhow!("No response content"))?;
+        let text = match content {
+            ContentBlock::Text { text } => text,
+            _ => return Err(anyhow::anyhow!("Unexpected response content type")),
+        };
+
+        let migration: MigrationResponse = serde_json::from_str(text)?;
 
         if self.verbose {
             if let Some(explanation) = &migration.explanation {
